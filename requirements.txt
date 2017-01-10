@@ -1,0 +1,4 @@
+envparse
+click
+requests
+beautifulsoup4
