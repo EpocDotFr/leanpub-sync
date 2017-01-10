@@ -24,12 +24,14 @@ def run():
 
     Env.read_envfile('.env')
 
+    session = requests.Session()
+
     # Firstly, we'll get the token called "authenticity_token" on the login page (https://leanpub.com/login),
     # stored in a hidden input. This token - which is always different - is required when submitting the login form.
 
     logging.info('Getting the authenticity token')
 
-    login_page = requests.get('https://leanpub.com/login').content
+    login_page = session.get('https://leanpub.com/login').content
 
     login_page_parsed = html.fromstring(login_page)
 
@@ -47,7 +49,7 @@ def run():
         'authenticity_token': authenticity_token
     }
 
-    login_result = requests.post('https://leanpub.com/session', data=login_data)
+    login_result = session.post('https://leanpub.com/session', data=login_data)
 
     login_result.raise_for_status()
 
@@ -58,9 +60,9 @@ def run():
 
     logging.info('Getting books to download')
 
-    purchased_packages = requests.get('https://leanpub.com/api/v1/purchased_packages?include=book').json
+    purchased_packages = session.get('https://leanpub.com/api/v1/purchased_packages?include=book&archived=false&type=library').json()
 
-    # https://leanpub.com/api/v1/purchased_packages?include=book%2C%20book.accepted_authors&archived=false&page=1&sort=created_at_desc&type=library&user_id=223538
+    print(purchased_packages)
 
 if __name__ == '__main__':
     run()

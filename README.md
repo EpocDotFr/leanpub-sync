@@ -18,7 +18,10 @@ Available configuration parameters are:
 
   - `LEANPUB_EMAIL` Leanpub account email
   - `LEANPUB_PASSWORD` Leanpub account password
-  - `LEANPUB_PREFERED_FORMAT` Format of the books to download. May be `epub` (for reading on phones and tablets), `pdf` (for reading on a computer) or `mobi` (for reading on a Kindle). Will automatically download an alternative version if your prefered isn't available
+  - `LEANPUB_PREFERED_FORMAT` Format of the books to download. Will automatically download an alternative version if your prefered isn't available. May be :
+    - `epub` (for reading on phones and tablets)
+    - `pdf` (for reading on a computer)
+    - `mobi` (for reading on a Kindle)
   - `OUTPUT_DIR` Directory in which to download the books (relative or absolute)
 
 ## Usage
