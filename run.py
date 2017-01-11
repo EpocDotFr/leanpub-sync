@@ -15,22 +15,7 @@ def debug(message, err=False, terminate=False):
         sys.exit(1)
 
 
-def run():
-    logging.basicConfig(
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%d/%m/%Y %H:%M:%S',
-        stream=sys.stdout
-    )
-
-    logging.getLogger().setLevel(logging.INFO)
-
-    Env.read_envfile('.env')
-
-    session = requests.Session() # To reuse the Leanpub cookies across all requests
-
-    # Firstly, we'll get the token called "authenticity_token" on the login page (https://leanpub.com/login),
-    # stored in a hidden input. This token - which is always different - is required when submitting the login form.
-
+def get_authenticity_token(session):
     debug('Getting the authenticity token')
 
     login_page = session.get('https://leanpub.com/login').content
@@ -39,15 +24,18 @@ def run():
 
     authenticity_token = login_page_parsed.xpath('//input[@name="authenticity_token"]/@value')
 
-    if len(authenticity_token) != 1:
+    if not authenticity_token or len(authenticity_token) != 1:
         debug('Unable to find the authenticity token', err=True, terminate=True)
 
     authenticity_token = authenticity_token[0]
 
     debug('Authenticity token: ' + authenticity_token)
 
-    # Next, we'll forge the data to be sent to the login endpoint (https://leanpub.com/session) using the token we
-    # scraped above, along your credentials.
+    return authenticity_token
+
+
+def login(session, authenticity_token):
+    debug('Trying to log-in')
 
     login_data = {
         'utf8': '✓',
@@ -65,9 +53,8 @@ def run():
 
     debug('Logged in successfully')
 
-    # We can now get the list of books to download from the library. Fortunately, there's - at least on the library
-    # page - a JSON-formatted API which simplify the process to extract them.
 
+def get_book_list(session):
     debug('Getting the book list')
 
     purchased_packages = session.get('https://leanpub.com/api/v1/purchased_packages?include=book&archived=false&type=library').json()
@@ -79,20 +66,31 @@ def run():
             'id': purchased_package['attributes']['short_url']
         }
 
-        book = next(b for b in purchased_packages['included'] if b['id'] == purchased_package['relationships']['book']['data']['id'])
+        book = None
 
-        book_to_download['name'] = book['attributes']['title']
-        book_to_download['format'] = 'epub' if book['attributes']['epub_available'] else 'pdf' # TODO env('PREFERED_FORMAT')
+        for included in purchased_packages['included']:
+            if included['id'] == purchased_package['relationships']['book']['data']['id'] and included['type'] == 'books':
+                book = included['attributes']
+
+        if not book:
+            debug('Book data not found for id ' + purchased_package['relationships']['book']['data']['id'], err=True)
+            continue
+
+        book_to_download['name'] = book['title']
+        book_to_download['format'] = 'epub' if book['epub_available'] else 'pdf' # TODO env('PREFERED_FORMAT')
 
         books_to_download.append(book_to_download)
 
     debug('{} books to download'.format(len(books_to_download)))
 
-    # Finally, download ALL the books.
+    return books_to_download
+
+
+def download_books(session, books_to_download):
+    book_download_url = 'https://leanpub.com/s/{id}.{format}'
+    output_dir = os.path.abspath(env('OUTPUT_DIR'))
 
     debug('Downloading books')
-
-    book_download_url = 'https://leanpub.com/s/{id}.{format}'
 
     for book_to_download in books_to_download:
         debug('  ' + book_to_download['name'])
@@ -108,16 +106,50 @@ def run():
         total_length = int(book_file.headers['Content-Length'])
         downloaded = 0
 
-        output_file = os.path.abspath(os.path.join(env('OUTPUT_DIR'), book_to_download['name'] + '.' + book_to_download['format']))
+        output_file = "".join(c for c in book_to_download['name'] + '.' + book_to_download['format'] if c.isalnum() or c in (' ','.','_')).rstrip()
+        output_path = os.path.join(output_dir, output_file)
 
-        with open(output_file, 'wb') as output:
-            with click.progressbar(length=total_length) as bar:
+        with open(output_path, 'wb') as output:
+            # Display a nice progress bar while downloading the book
+            with click.progressbar(length=total_length, label='Downloading to ' + output_dir) as bar:
                 for chunk in book_file.iter_content(chunk_size=1024):
                     downloaded += len(chunk)
 
                     output.write(chunk)
-
                     bar.update(downloaded)
+
+
+def run():
+    logging.basicConfig(
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%d/%m/%Y %H:%M:%S',
+        stream=sys.stdout
+    )
+
+    logging.getLogger().setLevel(logging.INFO)
+
+    Env.read_envfile('.env')
+
+    session = requests.Session() # To reuse the Leanpub cookies across all requests
+
+    # Firstly, we'll get the token called "authenticity_token" on the login page (https://leanpub.com/login),
+    # stored in a hidden input. This token - which is always different - is required when submitting the login form.
+
+    authenticity_token = get_authenticity_token(session)
+
+    # Next, we'll login usin the login endpoint (https://leanpub.com/session) with the token we scraped above along
+    # your credentials.
+
+    login(session, authenticity_token)
+
+    # We can now get the list of books to download from the library. Fortunately, there's - at least on the library
+    # page - a JSON-formatted API which simplify the process to extract them.
+
+    books_to_download = get_book_list(session)
+
+    # Finally, download ALL the books in the desired directory.
+
+    download_books(session, books_to_download)
 
 
 if __name__ == '__main__':
