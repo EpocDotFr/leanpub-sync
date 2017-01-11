@@ -34,13 +34,13 @@ def get_authenticity_token(session):
     return authenticity_token
 
 
-def login(session, authenticity_token):
+def login(session, authenticity_token, email, password):
     debug('Trying to log-in')
 
     login_data = {
         'utf8': '✓',
-        'session[email]': env('LEANPUB_EMAIL'),
-        'session[password]': env('LEANPUB_PASSWORD'),
+        'session[email]': email,
+        'session[password]': password,
         'authenticity_token': authenticity_token
     }
 
@@ -86,9 +86,9 @@ def get_book_list(session):
     return books_to_download
 
 
-def download_books(session, books_to_download):
+def download_books(session, books_to_download, output_dir):
     book_download_url = 'https://leanpub.com/s/{id}.{format}'
-    output_dir = os.path.abspath(env('OUTPUT_DIR'))
+    output_dir = os.path.abspath(output_dir)
 
     debug('Downloading books')
 
@@ -111,7 +111,7 @@ def download_books(session, books_to_download):
 
         with open(output_path, 'wb') as output:
             # Display a nice progress bar while downloading the book
-            with click.progressbar(length=total_length, label='Downloading to ' + output_dir) as bar:
+            with click.progressbar(length=total_length, label='Downloading to ' + output_dir) as bar: # FIXME The progress bar doesn't seems to work properly
                 for chunk in book_file.iter_content(chunk_size=1024):
                     downloaded += len(chunk)
 
@@ -137,10 +137,10 @@ def run():
 
     authenticity_token = get_authenticity_token(session)
 
-    # Next, we'll login usin the login endpoint (https://leanpub.com/session) with the token we scraped above along
+    # Next, we'll login using the login endpoint (https://leanpub.com/session) with the token we scraped above along
     # your credentials.
 
-    login(session, authenticity_token)
+    login(session, authenticity_token, env('LEANPUB_EMAIL'), env('LEANPUB_PASSWORD'))
 
     # We can now get the list of books to download from the library. Fortunately, there's - at least on the library
     # page - a JSON-formatted API which simplify the process to extract them.
@@ -149,7 +149,7 @@ def run():
 
     # Finally, download ALL the books in the desired directory.
 
-    download_books(session, books_to_download)
+    download_books(session, books_to_download, env('OUTPUT_DIR'))
 
 
 if __name__ == '__main__':
