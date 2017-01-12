@@ -15,10 +15,8 @@ def debug(message, err=False, terminate=False):
         sys.exit(1)
 
 
-def get_prefered_format(book):
+def get_format_to_download(book, prefered_format):
     """Given a book, return the format to download taking into account the prefered one."""
-    prefered_format = env('PREFERED_FORMAT')
-
     allowed_formats = ['epub', 'pdf', 'mobi']
 
     the_one = None
@@ -104,7 +102,7 @@ def get_book_list(session):
             continue
 
         book_to_download['name'] = book['title']
-        book_to_download['format'] = get_prefered_format(book)
+        book_to_download['format'] = get_format_to_download(book, env('PREFERED_FORMAT'))
 
         books_to_download.append(book_to_download)
 
