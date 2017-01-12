@@ -15,7 +15,32 @@ def debug(message, err=False, terminate=False):
         sys.exit(1)
 
 
+def get_prefered_format(book):
+    """Given a book, return the format to download taking into account the prefered one."""
+    prefered_format = env('PREFERED_FORMAT')
+
+    allowed_formats = ['epub', 'pdf', 'mobi']
+
+    the_one = None
+
+    # Check if the prefered format is available
+    for allowed_format in allowed_formats:
+        if allowed_format == prefered_format and allowed_format + '_available' in book and book[allowed_format + '_available']:
+            the_one = allowed_format
+            break
+
+    # Prefered format not available, pick the first that's coming
+    if not the_one:
+        for allowed_format in allowed_formats:
+            if allowed_format + '_available' in book and book[allowed_format + '_available']:
+                the_one = allowed_format
+                break
+
+    return the_one
+
+
 def get_authenticity_token(session):
+    """Return the authenticity token."""
     debug('Getting the authenticity token')
 
     login_page = session.get('https://leanpub.com/login').content
@@ -35,6 +60,7 @@ def get_authenticity_token(session):
 
 
 def login(session, authenticity_token, email, password):
+    """Log in to Leanpub."""
     debug('Trying to log-in')
 
     login_data = {
@@ -55,6 +81,7 @@ def login(session, authenticity_token, email, password):
 
 
 def get_book_list(session):
+    """Return a list of books."""
     debug('Getting the book list')
 
     purchased_packages = session.get('https://leanpub.com/api/v1/purchased_packages?include=book&archived=false&type=library').json()
@@ -68,16 +95,16 @@ def get_book_list(session):
 
         book = None
 
-        for included in purchased_packages['included']:
+        for included in purchased_packages['included']: # Get the book data
             if included['id'] == purchased_package['relationships']['book']['data']['id'] and included['type'] == 'books':
                 book = included['attributes']
 
         if not book:
-            debug('Book data not found for id ' + purchased_package['relationships']['book']['data']['id'], err=True)
+            debug('Book not found for id #' + purchased_package['relationships']['book']['data']['id'], err=True)
             continue
 
         book_to_download['name'] = book['title']
-        book_to_download['format'] = 'epub' if book['epub_available'] else 'pdf' # TODO env('PREFERED_FORMAT')
+        book_to_download['format'] = get_prefered_format(book)
 
         books_to_download.append(book_to_download)
 
@@ -87,14 +114,16 @@ def get_book_list(session):
 
 
 def download_books(session, books_to_download, output_dir):
+    """Download a list of books."""
     book_download_url = 'https://leanpub.com/s/{id}.{format}'
     output_dir = os.path.abspath(output_dir)
+
+    if not os.path.isdir(output_dir):
+        debug(output_dir + ' is not a directory or does not exists.', err=True, terminate=True)
 
     debug('Downloading books')
 
     for book_to_download in books_to_download:
-        debug('  ' + book_to_download['name'])
-
         book_file = session.get(book_download_url.format(id=book_to_download['id'], format=book_to_download['format']), stream=True)
 
         try:
@@ -106,20 +135,24 @@ def download_books(session, books_to_download, output_dir):
         total_length = int(book_file.headers['Content-Length'])
         downloaded = 0
 
+        # Remove unallowed characters in the filename
         output_file = "".join(c for c in book_to_download['name'] + '.' + book_to_download['format'] if c.isalnum() or c in (' ','.','_')).rstrip()
         output_path = os.path.join(output_dir, output_file)
 
         with open(output_path, 'wb') as output:
             # Display a nice progress bar while downloading the book
-            with click.progressbar(length=total_length, label='Downloading to ' + output_dir) as bar: # FIXME The progress bar doesn't seems to work properly
+            with click.progressbar(length=total_length, label=book_to_download['name']) as bar: # FIXME The progress bar doesn't seems to work properly
                 for chunk in book_file.iter_content(chunk_size=1024):
                     downloaded += len(chunk)
 
                     output.write(chunk)
                     bar.update(downloaded)
 
+    debug('Done!')
+
 
 def run():
+    """Run the script."""
     logging.basicConfig(
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%d/%m/%Y %H:%M:%S',
@@ -137,8 +170,8 @@ def run():
 
     authenticity_token = get_authenticity_token(session)
 
-    # Next, we'll login using the login endpoint (https://leanpub.com/session) with the token we scraped above along
-    # your credentials.
+    # Next, we'll post a forged form to the login endpoint (https://leanpub.com/session) with the token we scraped
+    # above along Leanpub credentials.
 
     login(session, authenticity_token, env('LEANPUB_EMAIL'), env('LEANPUB_PASSWORD'))
 

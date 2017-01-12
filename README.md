@@ -32,4 +32,11 @@ python run.py
 
 ## How it works
 
-Please refer to the script itself (`run.py`), it is self-explanatory.
+Leanpub [provide an API](https://leanpub.com/help/api), but unfortunately it is only useful for book writers. I
+[suggested](https://twitter.com/EpocDotFr/status/812271054475378688) in December, 2016 that it would be cool to also provide
+something for book readers, however this will obviously not be available right now.
+
+In the meantime we'll have to scrape their website - the good ol' way - and use what it seems to be an unofficial JSON API
+used by their frontend Javascript framework (React).
+
+Please refer to the script itself (`run.py`) for detailed information.
