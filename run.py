@@ -94,7 +94,7 @@ def get_book_list(session):
         book = None
 
         for included in purchased_packages['included']: # Get the book data
-            if included['id'] == purchased_package['relationships']['book']['data']['id'] and included['type'] == 'books':
+            if included['id'] == purchased_package['relationships']['book']['data']['id'] and included['type'] == 'Book':
                 book = included['attributes']
 
         if not book:
@@ -131,7 +131,6 @@ def download_books(session, books_to_download, output_dir):
             continue
 
         total_length = int(book_file.headers['Content-Length'])
-        downloaded = 0
 
         # Remove unallowed characters in the filename
         output_file = "".join(c for c in book_to_download['name'] + '.' + book_to_download['format'] if c.isalnum() or c in (' ','.','_')).rstrip()
@@ -139,12 +138,10 @@ def download_books(session, books_to_download, output_dir):
 
         with open(output_path, 'wb') as output:
             # Display a nice progress bar while downloading the book
-            with click.progressbar(length=total_length, label=book_to_download['name']) as bar: # FIXME The progress bar doesn't seems to work properly
+            with click.progressbar(length=total_length, label=book_to_download['name']) as bar:
                 for chunk in book_file.iter_content(chunk_size=1024):
-                    downloaded += len(chunk)
-
                     output.write(chunk)
-                    bar.update(downloaded)
+                    bar.update(len(chunk))
 
     debug('Done!')
 
